@@ -21,6 +21,8 @@ cd ~/.claude/skills/_library
 git clone https://github.com/Luispitik/claude-usage-auditor.git
 
 # 2. Ejecuta el instalador
+npx claude-usage-install
+# o, en desarrollo local
 node ~/.claude/skills/_library/claude-usage-auditor/lib/install.js
 ```
 
@@ -138,3 +140,21 @@ node test/runner.js   # debe quedar 65/65 + los nuevos tests que añadas
 ```
 
 Hallazgo de seguridad: por favor reporta en privado vía Issues con etiqueta `security` en lugar de PR público.
+
+
+## Entornos y variables
+
+- `CLAUDE_USAGE_DATA_DIR`: cambia el directorio de datos (por defecto `~/.nextgenai-productivity`).
+- `NEXTGENAI_DEBUG=1`: activa logs verbose para diagnostico.
+- `~/.nextgenai-productivity/api-keys.yaml`: activa la capa LLM opcional (`enabled: true` + `anthropic_api_key`).
+
+
+## Modo remoto
+
+En SSH/devcontainers, los informes se generan en el host remoto. Si no puedes abrir `file://` directamente, usa:
+
+```bash
+node lib/export.js > report-export.json
+```
+
+Ese JSON contiene el HTML en base64 para transferirlo y abrirlo localmente.
