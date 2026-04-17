@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Visual Explainer · Auditoria 00-07</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-soft: #111c33;
+      --card: #16233f;
+      --card-2: #1a2d52;
+      --text: #e5ecff;
+      --muted: #9fb0d6;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --skip: #94a3b8;
+      --line: #2e4472;
+      --accent: #38bdf8;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Avenir Next", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 500px at 85% -20%, rgba(56,189,248,.18), transparent 60%),
+        radial-gradient(900px 400px at -5% -10%, rgba(34,197,94,.12), transparent 55%),
+        var(--bg);
+      line-height: 1.45;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.4fr .9fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--card), var(--card-2));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 10px 25px rgba(0,0,0,.22);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    .sub { color: var(--muted); font-size: 14px; margin: 0; }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .kpi {
+      background: rgba(15, 23, 42, .5);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .kpi b { display: block; font-size: 21px; }
+    .kpi span { color: var(--muted); font-size: 12px; }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(15,23,42,.5);
+    }
+
+    .dot { width: 9px; height: 9px; border-radius: 999px; }
+    .ok { background: var(--ok); }
+    .warn { background: var(--warn); }
+    .skip { background: var(--skip); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      letter-spacing: -0.01em;
+    }
+
+    ul { margin: 0; padding-left: 16px; }
+    li { margin: 7px 0; color: var(--muted); }
+    li b { color: var(--text); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      padding: 9px 8px;
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 600; }
+
+    .status {
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .status.ok { color: var(--ok); }
+    .status.warn { color: var(--warn); }
+    .status.skip { color: var(--skip); }
+
+    .flow {
+      margin-top: 18px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(15,23,42,.45);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(17,28,51,.6);
+      position: relative;
+      min-height: 78px;
+    }
+
+    .step b { display:block; margin-bottom: 4px; color: var(--text); }
+    .step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      right: -13px;
+      top: 28px;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .footer {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    code {
+      background: rgba(15,23,42,.6);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1px 6px;
+      color: #d6e6ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
+
+    @media (max-width: 980px) {
+      .hero, .grid { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr 1fr; }
+      .step:not(:last-child)::after { content: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <article class="card">
+        <h1>Visual Explainer · Cambios 00→07</h1>
+        <p class="sub">Ejecucion incremental del plan de auditoria con decisiones explicitas de alcance: se aplicaron fixes de seguridad/arquitectura/ops/testing y se respetaron exclusiones solicitadas por el propietario.</p>
+        <div class="kpis">
+          <div class="kpi"><b>85 / 0</b><span>tests (pass / fail)</span></div>
+          <div class="kpi"><b>ARCH-004</b><span>completado (split modular)</span></div>
+          <div class="kpi"><b>PERF-008</b><span>retry + abort timeout + hardening</span></div>
+        </div>
+      </article>
+      <aside class="card">
+        <h2>Decisiones de Alcance</h2>
+        <div class="legend">
+          <span class="pill"><span class="dot ok"></span>Aplicado</span>
+          <span class="pill"><span class="dot warn"></span>Aplicado con ajuste</span>
+          <span class="pill"><span class="dot skip"></span>Omitido por decision explicita</span>
+        </div>
+        <ul>
+          <li><b>ARCH-003:</b> no aplicado (se mantiene <code>~/.nextgenai-productivity</code>).</li>
+          <li><b>PERF-004:</b> no aplicado por baja implicacion inmediata.</li>
+          <li><b>SEC-006:</b> no aplicado como hardening, pero se restaura grafico funcional.</li>
+          <li><b>OPS-005:</b> sin cambios adicionales (segun instruccion).</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Matriz de Cambios</h2>
+        <table>
+          <thead>
+            <tr><th>Bloque</th><th>Estado</th><th>Resultado</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>ARCH-004</td><td><span class="status ok">Aplicado</span></td><td><code>lib/insights/</code> separado en <code>derived</code>, <code>rules</code>, <code>history</code>, <code>index</code> + shim compatible.</td></tr>
+            <tr><td>PERF-008</td><td><span class="status ok">Aplicado</span></td><td><code>lib/llm-insights.js</code> con AbortController, timeout real, retry para errores transitorios y clasificación de errores.</td></tr>
+            <tr><td>OPS-007</td><td><span class="status ok">Aplicado</span></td><td>Schema v1 con <code>v</code>, migrador <code>lib/migrate.js</code> y normalización v0→v1 en <code>aggregate</code>.</td></tr>
+            <tr><td>OPS-001</td><td><span class="status warn">Aplicado</span></td><td>CI reforzado + guia de branch protection en <code>.github/BRANCH_PROTECTION.md</code> (config manual en GitHub).</td></tr>
+            <tr><td>SEC-006</td><td><span class="status warn">Ajustado</span></td><td>No se hizo inline/SRI, pero se recuperó el render del gráfico cargando Chart.js en el template.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article class="card">
+        <h2>Testing Exhaustivo Agregado</h2>
+        <ul>
+          <li><b>LLM (9 casos):</b> config YAML, permisos, parser, payload, parse response y cache/force.</li>
+          <li><b>Status (5 casos):</b> 0 eventos, conteo correcto, CRLF, basename del reporte, fallback de version.</li>
+          <li><b>Stress e2e:</b> 3 sesiones concurrentes × 20 eventos (5KB) => 60 lineas JSONL.</li>
+          <li><b>Migracion:</b> pruebas unitarias para <code>inferModeFromType</code> y <code>migrateV0toV1</code>.</li>
+          <li><b>Hardening aggregate:</b> safeKey y bloqueo de claves peligrosas tipo <code>__proto__</code>.</li>
+        </ul>
+
+        <div class="flow">
+          <div class="steps">
+            <div class="step"><b>1) Eventos</b>Tracker escribe v1 por sesión y evita colisiones.</div>
+            <div class="step"><b>2) Migración</b>Aggregate normaliza v0→v1 on-the-fly.</div>
+            <div class="step"><b>3) Insights</b>Capa modular + LLM resiliente (retry/abort).</div>
+            <div class="step"><b>4) Reporte</b>HTML final con gráfico diario funcional y validado.</div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <p class="footer">Archivo generado para revisión técnica y traspaso de contexto. Fuente del estado: cambios locales + suite <code>node test/runner.js</code>.</p>
+  </div>
+</body>
+</html>
