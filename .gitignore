@@ -18,3 +18,6 @@ Thumbs.db
 
 # User data (el plugin escribe aqui en runtime, nunca en el repo)
 .nextgenai-productivity/
+
+# Audit data (fuente de verdad local, gestionado por fs-audit-project)
+.audit/
