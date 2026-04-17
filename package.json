@@ -1,0 +1,32 @@
+{
+  "name": "claude-usage-auditor",
+  "version": "0.4.0",
+  "description": "Plugin for Claude Code that tracks local CLI usage and generates HTML reports",
+  "main": "lib/render.js",
+  "bin": {
+    "claude-usage-install": "lib/install.js",
+    "claude-usage-uninstall": "lib/uninstall.js",
+    "claude-usage-report": "lib/render.js"
+  },
+  "scripts": {
+    "test": "node test/runner.js",
+    "install-hooks": "node lib/install.js",
+    "uninstall-hooks": "node lib/uninstall.js",
+    "prune": "node lib/prune.js --older-than 90d",
+    "export-report": "node lib/export.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "observability"
+  ],
+  "author": "Luispitik",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Luispitik/claude-usage-auditor.git"
+  }
+}
