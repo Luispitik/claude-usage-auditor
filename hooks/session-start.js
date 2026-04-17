@@ -1,88 +1,97 @@
 #!/usr/bin/env node
 /**
- * NextGen AI Institute Productivity · session-start hook
- *
- * Se invoca por Claude Code en SessionStart con JSON en stdin
- * (formato: { session_id, cwd, ... }).
- *
- * Detecta si el proyecto actual tiene `.nextgenai-productivity/goals.yaml`.
- * - Si existe, sale en silencio.
- * - Si NO existe y no está en un "skip-list" (home, /tmp, root), imprime
- *   un mensaje sugiriendo ejecutar /productivity-goals. Lo hace una vez por
- *   sesión usando un lockfile en ~/.nextgenai-productivity/prompted/.
- *
- * Fallo silencioso siempre: no bloquea Claude Code.
+ * claude-usage-auditor · session-start hook
  */
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { PROMPTED_DIR, DEBUG } = require('../lib/config');
+const { readStdin } = require('../lib/utils/stdin');
+const { ensureDir } = require('../lib/utils/fs-utils');
 
-const DATA_DIR = path.join(os.homedir(), '.nextgenai-productivity');
-const PROMPTED_DIR = path.join(DATA_DIR, 'prompted');
+function verbose(msg) {
+  if (DEBUG) process.stderr.write(`[session-start] ${msg}\n`);
+}
 
-function readStdin() {
-  return new Promise((resolve) => {
-    let data = '';
-    if (process.stdin.isTTY) { resolve(''); return; }
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', c => data += c);
-    process.stdin.on('end', () => resolve(data));
-    setTimeout(() => resolve(data), 500);
-  });
+function normalizePath(input) {
+  const resolved = path.resolve(input);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
 function shouldSkip(cwd) {
   if (!cwd) return true;
-  // En Windows el filesystem es case-insensitive. Comparamos tras
-  // path.resolve() + lowercase para evitar falsos negativos con
-  // C:\Users\foo vs c:\users\foo.
-  const isWin = process.platform === 'win32';
-  const norm = p => {
-    const r = path.resolve(p);
-    return isWin ? r.toLowerCase() : r;
-  };
-  const normalized = norm(cwd);
-  const home = os.homedir();
-  const skipPaths = [home, '/tmp', '/', 'C:\\', os.tmpdir()];
-  if (skipPaths.some(p => norm(p) === normalized)) return true;
-  // si está inmediatamente bajo el home y empieza por punto (dotfile), skip
-  if (path.dirname(normalized) === norm(home) && path.basename(normalized).startsWith('.')) return true;
+  const normalized = normalizePath(cwd);
+  const home = normalizePath(os.homedir());
+  const tmp = normalizePath(os.tmpdir());
+
+  if (normalized === home) return true;
+  if (normalized === normalizePath(path.parse(normalized).root)) return true;
+  if (normalized.startsWith(tmp + path.sep) || normalized === tmp) return true;
+
+  if (path.dirname(normalized) === home && path.basename(normalized).startsWith('.')) return true;
   return false;
+}
+
+function cleanupOldLocks() {
+  try {
+    ensureDir(PROMPTED_DIR, 0o700);
+    const cutoff = Date.now() - 24 * 3600 * 1000;
+    for (const entry of fs.readdirSync(PROMPTED_DIR)) {
+      const lockPath = path.join(PROMPTED_DIR, entry);
+      const st = fs.statSync(lockPath);
+      if (st.mtimeMs < cutoff) fs.unlinkSync(lockPath);
+    }
+  } catch {
+    // best effort
+  }
 }
 
 (async () => {
   try {
-    const raw = await readStdin();
+    const raw = await readStdin(500);
     let payload = {};
-    try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = {}; }
+    try {
+      payload = raw ? JSON.parse(raw) : {};
+    } catch {
+      payload = {};
+    }
 
     const cwd = payload.cwd || process.cwd();
     const sessionId = payload.session_id || 'unknown';
+    if (shouldSkip(cwd)) {
+      process.exit(0);
+      return;
+    }
 
-    if (shouldSkip(cwd)) { process.exit(0); return; }
+    const goalsPath = path.resolve(cwd, '.nextgenai-productivity', 'goals.yaml');
+    const relativeGoalsPath = path.relative(cwd, goalsPath) || '.nextgenai-productivity/goals.yaml';
+    if (fs.existsSync(goalsPath)) {
+      process.exit(0);
+      return;
+    }
 
-    const goalsPath = path.join(cwd, '.nextgenai-productivity', 'goals.yaml');
-    if (fs.existsSync(goalsPath)) { process.exit(0); return; }
-
-    // lockfile por sesión para no spammear
+    cleanupOldLocks();
     try {
-      if (!fs.existsSync(PROMPTED_DIR)) fs.mkdirSync(PROMPTED_DIR, { recursive: true });
+      ensureDir(PROMPTED_DIR, 0o700);
       const lockFile = path.join(PROMPTED_DIR, `${sessionId}.lock`);
-      if (fs.existsSync(lockFile)) { process.exit(0); return; }
-      fs.writeFileSync(lockFile, new Date().toISOString());
-    } catch { /* ignore, sigue */ }
+      if (fs.existsSync(lockFile)) {
+        process.exit(0);
+        return;
+      }
+      fs.writeFileSync(lockFile, new Date().toISOString(), { encoding: 'utf8', mode: 0o600 });
+    } catch {
+      // keep going
+    }
 
-    // mensaje para el contexto de Claude (se envía via stdout como additionalContext)
     const message = [
       '',
-      '[nextgenai-productivity] Este proyecto aún no tiene objetivos definidos.',
-      `Falta: ${goalsPath}`,
+      '[nextgenai-productivity] Este proyecto aun no tiene objetivos definidos.',
+      `Falta: ${relativeGoalsPath}`,
       'Ejecuta /productivity-goals cuando quieras alinear los insights semanales con lo que importa en este proyecto.',
       ''
     ].join('\n');
 
-    // hooks SessionStart pueden emitir JSON con hookSpecificOutput.additionalContext
     const out = {
       hookSpecificOutput: {
         hookEventName: 'SessionStart',
@@ -92,7 +101,7 @@ function shouldSkip(cwd) {
     process.stdout.write(JSON.stringify(out));
     process.exit(0);
   } catch (e) {
-    if (process.env.NEXTGENAI_DEBUG) process.stderr.write(`[nextgenai/session-start] ${e.message}\n`);
+    verbose(e.message);
     process.exit(0);
   }
 })();
