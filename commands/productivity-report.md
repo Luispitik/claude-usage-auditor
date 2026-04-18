@@ -20,7 +20,7 @@ Genera el informe HTML de productividad con Claude Code a partir de los eventos 
 
 Ruta real del script:
 ```
-$HOME/.claude/skills/_library/nextgenai-productivity/lib/render.js
+$HOME/.claude/skills/_library/claude-usage-auditor/lib/render.js
 ```
 
 **Tras ejecutar, informa al usuario**:

@@ -69,4 +69,4 @@ report_frequency: {{weekly|daily|on-demand}}
 - El archivo se guarda **dentro del proyecto**, no en `~/.nextgenai-productivity/`. Esto permite que cada proyecto tenga objetivos distintos.
 - Añadir `.nextgenai-productivity/` al `.gitignore` del proyecto si el usuario lo pide (opcional).
 - Si el proyecto no tiene sentido como CWD (p.ej. `~` o `/tmp`), avisar y no crear nada.
-- IDs válidos de `track` están en `$HOME/.claude/skills/_library/nextgenai-productivity/lib/insights-catalog.json`.
+- IDs válidos de `track` están en `$HOME/.claude/skills/_library/claude-usage-auditor/lib/insights-catalog.json`.

@@ -46,6 +46,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # gitleaks runs `git log HEAD^..HEAD` on pull_request events, so the
+          # parent commit must be in the local history. Default fetch-depth=1
+          # (shallow) only brings HEAD and makes gitleaks fail with
+          # "unknown revision HEAD^".
+          fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
