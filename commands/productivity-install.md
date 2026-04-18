@@ -7,7 +7,7 @@ description: Instala los hooks de NextGen AI Institute Productivity (v0.2 - 4 ho
 Ejecuta el instalador del plugin NextGen AI Institute Productivity:
 
 ```bash
-node "$HOME/.claude/skills/_library/nextgenai-productivity/lib/install.js"
+node "$HOME/.claude/skills/_library/claude-usage-auditor/lib/install.js"
 ```
 
 Añade los hooks `PreToolUse`, `PostToolUse`, `Stop` y `SessionStart` en `~/.claude/settings.json` y crea la carpeta `~/.nextgenai-productivity/` con subdirectorios `events/`, `metrics/` y `reports/`.

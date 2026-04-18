@@ -7,7 +7,7 @@ description: Muestra si los hooks de NextGen AI Institute Productivity (v0.2 - 4
 Ejecuta el verificador de estado:
 
 ```bash
-node "$HOME/.claude/skills/_library/nextgenai-productivity/lib/status.js"
+node "$HOME/.claude/skills/_library/claude-usage-auditor/lib/status.js"
 ```
 
 **Tras ejecutar, resume al usuario**:
