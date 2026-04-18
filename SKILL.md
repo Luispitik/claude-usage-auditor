@@ -1,7 +1,7 @@
 ---
 name: nextgenai-productivity
 description: Mide objetivamente tu uso de Claude Code (tiempo real, tareas, retries, tools usadas) y genera informes HTML locales semanales. Replicable por cualquier persona sin configuración por usuario. 100% local, ningún dato sale de tu máquina.
-version: 0.1.0
+version: 0.3.0
 author: NextGen AI Institute · Luis Salgado
 license: MIT
 ---
@@ -33,7 +33,7 @@ Todas las métricas se extraen de eventos de tus propias sesiones de Claude Code
 
 - ❌ No lee el contenido de tus prompts ni respuestas
 - ❌ No envía nada fuera de tu máquina
-- ❌ No hace juicios ni coaching (v0.1 solo datos objetivos)
+- ❌ No hace juicios ni coaching (v0.3 solo datos objetivos)
 - ❌ No requiere cuenta ni servidor
 - ❌ No depende de ningún servicio externo
 
@@ -118,7 +118,7 @@ Puedes borrar cualquier archivo en cualquier momento. Puedes llevártelo a otro 
 
 ## Roadmap
 
-- **v0.1** (ahora): métricas objetivas + informe HTML local
+- **v0.3** (ahora): métricas objetivas + informe HTML local
 - **v0.2**: capa opcional de coaching automático (reglas deterministas) basada en los mismos datos
 - **v0.3**: exportación agregada anonimizada para dashboards de equipo (siempre opt-in)
 - **v0.4**: integración Git para enlazar sesiones con commits y PRs

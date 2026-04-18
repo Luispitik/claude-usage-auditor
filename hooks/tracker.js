@@ -1,81 +1,124 @@
 #!/usr/bin/env node
 /**
- * NextGen AI Institute Productivity · tracker hook
- *
- * Se invoca con uno de estos modos:
- *   node tracker.js pre-tool-use
- *   node tracker.js post-tool-use
- *   node tracker.js stop
- *
- * Lee JSON del stdin (formato de Claude Code hooks) y añade un evento
- * al archivo del día en ~/.nextgenai-productivity/events/YYYY-MM-DD.jsonl
- *
- * IMPORTANTE:
- * - NUNCA guarda el contenido de tool_input ni tool_response
- * - SOLO metadata: tool name, timestamp, duration, session_id, cwd
- * - Fallo silencioso: si algo va mal, no interrumpe Claude Code
+ * claude-usage-auditor · tracker hook
  */
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+const {
+  DATA_DIR,
+  EVENTS_DIR,
+  ERRORS_FILE,
+  DEBUG
+} = require('../lib/config');
+const { readStdin } = require('../lib/utils/stdin');
+const { ensureDir } = require('../lib/utils/fs-utils');
 
-const MODE = process.argv[2]; // 'pre-tool-use' | 'post-tool-use' | 'stop'
-const DATA_DIR = path.join(os.homedir(), '.nextgenai-productivity');
-const EVENTS_DIR = path.join(DATA_DIR, 'events');
+const MODE = process.argv[2];
+const MAX_HASH_BYTES = 8 * 1024;
+const EXCLUDE_TOOLS = new Set(['TodoWrite']);
 
-// -------- util: timestamps --------
-function nowIso() { return new Date().toISOString(); }
-function today() { return nowIso().slice(0, 10); }
-
-// -------- util: leer stdin sin bloquear --------
-function readStdin() {
-  return new Promise((resolve) => {
-    let data = '';
-    if (process.stdin.isTTY) { resolve(''); return; }
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => { data += chunk; });
-    process.stdin.on('end', () => resolve(data));
-    // timeout 500ms por seguridad
-    setTimeout(() => resolve(data), 500);
-  });
+function nowIso() {
+  return new Date().toISOString();
 }
 
-// -------- util: escritura atómica (append) --------
-function appendEvent(event) {
+function todayLocal() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function writeError(stage, err) {
   try {
-    if (!fs.existsSync(EVENTS_DIR)) {
-      fs.mkdirSync(EVENTS_DIR, { recursive: true });
-    }
-    const file = path.join(EVENTS_DIR, `${today()}.jsonl`);
-    fs.appendFileSync(file, JSON.stringify(event) + '\n', 'utf8');
-  } catch (e) {
-    // fallo silencioso, pero registramos en stderr para debug
-    if (process.env.NEXTGENAI_DEBUG) process.stderr.write(`[nextgenai] ${e.message}\n`);
+    ensureDir(DATA_DIR, 0o700);
+    const row = {
+      ts: nowIso(),
+      stage,
+      message: err && err.message ? String(err.message) : String(err),
+      stack: err && err.stack ? String(err.stack).slice(0, 500) : null
+    };
+    fs.appendFileSync(ERRORS_FILE, `${JSON.stringify(row)}\n`, 'utf8');
+  } catch {
+    // no-op
   }
 }
 
-// -------- util: detectar tamaño de input/output sin guardar contenido --------
-function sizeOf(val) {
-  if (val == null) return 0;
-  try { return JSON.stringify(val).length; } catch { return 0; }
+function verbose(msg) {
+  if (DEBUG) process.stderr.write(`[tracker] ${msg}\n`);
 }
 
-// -------- util: hash simple para detectar retries (mismos args, corto periodo) --------
-function quickHash(str) {
+function sizeOf(val) {
+  if (val == null) return 0;
+  if (typeof val === 'string') return val.length;
+  try {
+    const s = JSON.stringify(val);
+    return s ? s.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function quickHash(val) {
+  let s;
+  try {
+    s = JSON.stringify(val);
+  } catch {
+    return '';
+  }
+  if (!s) return '';
+  if (s.length > MAX_HASH_BYTES) s = s.slice(0, MAX_HASH_BYTES);
   let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) + str.charCodeAt(i);
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h) + s.charCodeAt(i);
   return (h >>> 0).toString(36);
 }
 
-// -------- main --------
+function rotateLegacyIfNeeded(date) {
+  const legacyFile = path.join(EVENTS_DIR, `${date}.jsonl`);
+  const dayDir = path.join(EVENTS_DIR, date);
+  if (!fs.existsSync(legacyFile)) return;
+  ensureDir(dayDir, 0o700);
+  const hasAny = fs.readdirSync(dayDir).some((f) => f.endsWith('.jsonl'));
+  if (hasAny) return;
+  const target = path.join(dayDir, 'legacy.jsonl');
+  fs.renameSync(legacyFile, target);
+}
+
+function appendEvent(event) {
+  try {
+    const date = todayLocal();
+    ensureDir(EVENTS_DIR, 0o700);
+    rotateLegacyIfNeeded(date);
+    const dayDir = path.join(EVENTS_DIR, date);
+    ensureDir(dayDir, 0o700);
+    const sid = String(event.session_id || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const file = path.join(dayDir, `${sid}.jsonl`);
+    fs.appendFileSync(file, `${JSON.stringify(event)}\n`, 'utf8');
+  } catch (e) {
+    writeError('append_event', e);
+    verbose(e.message);
+  }
+}
+
 (async () => {
   try {
-    const raw = await readStdin();
+    const raw = await readStdin(500);
     let payload = {};
-    try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = {}; }
+    try {
+      payload = raw ? JSON.parse(raw) : {};
+    } catch {
+      payload = {};
+    }
+
+    const toolName = payload.tool_name || 'unknown';
+    if (EXCLUDE_TOOLS.has(toolName)) {
+      process.exit(0);
+      return;
+    }
 
     const base = {
+      v: 1,
       ts: nowIso(),
       mode: MODE,
       session_id: payload.session_id || 'unknown',
@@ -83,38 +126,23 @@ function quickHash(str) {
     };
 
     if (MODE === 'pre-tool-use') {
-      const toolName = payload.tool_name || 'unknown';
-      const inputSize = sizeOf(payload.tool_input);
-      const inputHash = payload.tool_input
-        ? quickHash(JSON.stringify(payload.tool_input)).slice(0, 10)
-        : '';
       appendEvent({
         ...base,
         type: 'tool_start',
         tool: toolName,
-        input_size: inputSize,
-        input_hash: inputHash
+        input_size: sizeOf(payload.tool_input),
+        input_hash: payload.tool_input ? quickHash(payload.tool_input).slice(0, 10) : ''
       });
-    }
-
-    else if (MODE === 'post-tool-use') {
-      const toolName = payload.tool_name || 'unknown';
-      const outputSize = sizeOf(payload.tool_response);
-      const inputHash = payload.tool_input
-        ? quickHash(JSON.stringify(payload.tool_input)).slice(0, 10)
-        : '';
-      // duration se calcula al agregar (pareando pre↔post por session+hash)
+    } else if (MODE === 'post-tool-use') {
       appendEvent({
         ...base,
         type: 'tool_end',
         tool: toolName,
-        output_size: outputSize,
-        input_hash: inputHash,
+        output_size: sizeOf(payload.tool_response),
+        input_hash: payload.tool_input ? quickHash(payload.tool_input).slice(0, 10) : '',
         ok: !(payload.tool_response && payload.tool_response.is_error)
       });
-    }
-
-    else if (MODE === 'stop') {
+    } else if (MODE === 'stop') {
       appendEvent({
         ...base,
         type: 'session_stop',
@@ -122,10 +150,10 @@ function quickHash(str) {
       });
     }
 
-    // exit 0 siempre para no bloquear Claude Code
     process.exit(0);
   } catch (e) {
-    if (process.env.NEXTGENAI_DEBUG) process.stderr.write(`[nextgenai] fatal: ${e.message}\n`);
+    writeError('tracker_fatal', e);
+    verbose(`fatal: ${e.message}`);
     process.exit(0);
   }
 })();

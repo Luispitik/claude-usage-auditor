@@ -1,8 +1,5 @@
 /**
  * Unit tests — hooks/tracker.js
- *
- * El tracker es un script con IIFE que lee stdin y escribe a ~/.nextgenai-productivity/events/.
- * Lo ejecutamos en subprocess con DATA_DIR redirigido vía env HOME para aislar.
  */
 const path = require('path');
 const fs = require('fs');
@@ -12,24 +9,33 @@ const { spawnSync } = require('child_process');
 const TRACKER = path.join(__dirname, '..', '..', 'hooks', 'tracker.js');
 
 function runTracker(mode, payload, tmpHome) {
-  const res = spawnSync('node', [TRACKER, mode], {
+  return spawnSync('node', [TRACKER, mode], {
     input: JSON.stringify(payload),
     env: { ...process.env, HOME: tmpHome, USERPROFILE: tmpHome, NEXTGENAI_DEBUG: '1' },
     encoding: 'utf8',
     timeout: 5000
   });
-  return res;
 }
 
 function makeTmpHome() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ngai-test-tracker-'));
-  return dir;
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'ngai-test-tracker-'));
 }
 
-function readEventsFile(tmpHome, date) {
-  const f = path.join(tmpHome, '.nextgenai-productivity', 'events', `${date}.jsonl`);
-  if (!fs.existsSync(f)) return [];
-  return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l));
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function readEventsDay(tmpHome, date) {
+  const out = [];
+  const dayDir = path.join(tmpHome, '.nextgenai-productivity', 'events', date);
+  if (!fs.existsSync(dayDir)) return out;
+  for (const file of fs.readdirSync(dayDir)) {
+    if (!file.endsWith('.jsonl')) continue;
+    const rows = fs.readFileSync(path.join(dayDir, file), 'utf8').split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
+    out.push(...rows);
+  }
+  return out;
 }
 
 suite('[unit] tracker · modo pre-tool-use', () => {
@@ -42,12 +48,12 @@ suite('[unit] tracker · modo pre-tool-use', () => {
       tool_input: { file_path: '/secret.txt' }
     }, tmp);
     assertEq(res.status, 0, 'exit 0');
-    const today = new Date().toISOString().slice(0, 10);
-    const events = readEventsFile(tmp, today);
+    const events = readEventsDay(tmp, todayLocal());
     assertEq(events.length, 1);
     assertEq(events[0].type, 'tool_start');
     assertEq(events[0].tool, 'Read');
     assertEq(events[0].session_id, 'abc');
+    assertEq(events[0].v, 1);
     assert(events[0].input_size > 0, 'input_size calculado');
     assert(events[0].input_hash && events[0].input_hash.length > 0, 'hash presente');
   });
@@ -61,9 +67,8 @@ suite('[unit] tracker · modo pre-tool-use', () => {
       tool_name: 'Bash',
       tool_input: { command: `echo ${secret}` }
     }, tmp);
-    const today = new Date().toISOString().slice(0, 10);
-    const f = path.join(tmp, '.nextgenai-productivity', 'events', `${today}.jsonl`);
-    const raw = fs.readFileSync(f, 'utf8');
+    const dayDir = path.join(tmp, '.nextgenai-productivity', 'events', todayLocal());
+    const raw = fs.readFileSync(path.join(dayDir, 's1.jsonl'), 'utf8');
     assert(!raw.includes(secret), 'secreto NO debe aparecer en eventos');
     assert(!raw.includes('echo'), 'comando NO debe aparecer');
   });
@@ -80,9 +85,7 @@ suite('[unit] tracker · modo post-tool-use', () => {
       tool_input: { file_path: 'x' },
       tool_response: { content: secret, is_error: false }
     }, tmp);
-    const today = new Date().toISOString().slice(0, 10);
-    const f = path.join(tmp, '.nextgenai-productivity', 'events', `${today}.jsonl`);
-    const raw = fs.readFileSync(f, 'utf8');
+    const raw = fs.readFileSync(path.join(tmp, '.nextgenai-productivity', 'events', todayLocal(), 's2.jsonl'), 'utf8');
     assert(!raw.includes(secret), 'respuesta NO aparece');
   });
 
@@ -93,8 +96,7 @@ suite('[unit] tracker · modo post-tool-use', () => {
       tool_name: 'Bash',
       tool_response: { is_error: true }
     }, tmp);
-    const today = new Date().toISOString().slice(0, 10);
-    const events = readEventsFile(tmp, today);
+    const events = readEventsDay(tmp, todayLocal());
     assertEq(events[0].ok, false);
   });
 });
@@ -103,11 +105,10 @@ suite('[unit] tracker · resiliencia', () => {
   test('stdin vacío no crashea, exit 0', () => {
     const tmp = makeTmpHome();
     const res = runTracker('pre-tool-use', null, tmp);
-    // even with null, JSON.stringify(null)="null" which parses OK
     assertEq(res.status, 0);
   });
 
-  test('payload con JSON inválido (simulado pasando string raw) no crashea', () => {
+  test('payload con JSON inválido no crashea', () => {
     const tmp = makeTmpHome();
     const res = spawnSync('node', [TRACKER, 'pre-tool-use'], {
       input: '{not-valid-json',
